@@ -20,6 +20,7 @@ static void * ngx_http_autoindex_ext_create_loc_conf(ngx_conf_t *cf);
 typedef struct {
 	ngx_flag_t	enabled;
 	ngx_flag_t	exact_size;
+	ngx_flag_t  sort_mode;
 	ngx_str_t	stylesheet;
 } ngx_http_autoindex_ext_loc_conf_t;
 
@@ -37,6 +38,13 @@ static ngx_command_t ngx_http_autoindex_ext_commands[] = {
 		ngx_conf_set_flag_slot,
 		NGX_HTTP_LOC_CONF_OFFSET,
 		offsetof(ngx_http_autoindex_ext_loc_conf_t, exact_size), NULL
+	},
+	{
+		ngx_string("autoindex_ext_sort_by_date"),
+		NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+		ngx_conf_set_flag_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_autoindex_ext_loc_conf_t, sort_mode), NULL
 	},
 	{
 		ngx_string("autoindex_ext_stylesheet"),
@@ -104,6 +112,8 @@ static u_char ngx_http_autoindex_ext_back[] =
 "\t\t</tr>"												CRLF
 ;
 
+ngx_http_autoindex_ext_loc_conf_t *config;
+
 static int ngx_libc_cdecl
 ngx_http_autoindex_ext_cmp_entries(const void *one, const void *two)
 {
@@ -116,7 +126,11 @@ ngx_http_autoindex_ext_cmp_entries(const void *one, const void *two)
 	if (!first->is_dir && second->is_dir)
 		return 1;
 
-	return (int) ngx_strcmp(first->name.data, second->name.data);
+	if(config->sort_mode != NGX_CONF_UNSET && config->sort_mode && first->date != second->date) {
+		return (int) first->date > second->date ? -1 : 1;
+	} else {
+		return (int) ngx_strcmp(first->name.data, second->name.data);
+	}
 }
 
 static ngx_int_t
@@ -148,6 +162,7 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 
 	// First, we need to have access to the config.
 	conf = ngx_http_get_module_loc_conf(r, ngx_http_autoindex_ext_module);
+	config = conf;
 	if (!conf)
 		return NGX_HTTP_INTERNAL_SERVER_ERROR;
 
@@ -454,6 +469,7 @@ ngx_http_autoindex_ext_create_loc_conf(ngx_conf_t *cf)
 
 	conf->enabled = NGX_CONF_UNSET;
 	conf->exact_size = NGX_CONF_UNSET;
+	conf->sort_mode = -1;
 
 	return conf;
 }

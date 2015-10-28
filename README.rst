@@ -27,6 +27,7 @@ Another example (directory)::
     alias                      /var/www/public;
     autoindex_ext              on;
     autoindex_ext_exact_size   off;
+    autoindex_ext_sort_by_date on;
     autoindex_ext_stylesheet   "http://cdn.example.com/css/autoindex.css";
   }
 
@@ -109,6 +110,12 @@ autoindex_ext_exact_size
 :Syntax: *autoindex_ext_exact_size* [*on* | *off*]
 :Description:
   Display the exact size of the files in bytes.
+
+autoindex_ext_sort_by_date
+~~~~~~~~~~~~~~~~~~~~~~~~
+:Syntax: *autoindex_ext_sort_by_date* [*on* | *off*]
+:Description:
+  Sorts files and folders by dates instead of names.
 
 autoindex_ext_stylesheet
 ~~~~~~~~~~~~~~~~~~~~~~~~
