@@ -16,11 +16,13 @@
 static ngx_int_t ngx_http_autoindex_ext_init(ngx_conf_t *cf);
 static char * ngx_http_autoindex_ext_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
 static void * ngx_http_autoindex_ext_create_loc_conf(ngx_conf_t *cf);
+static int ngx_strcmp_ignorewhitespace(const u_char * s1, const u_char * s2);
 
 typedef struct {
 	ngx_flag_t	enabled;
 	ngx_flag_t	exact_size;
-	ngx_flag_t  sort_mode;
+	ngx_flag_t	sort_mode;
+	ngx_flag_t	ignore_whitespace;
 	ngx_str_t	stylesheet;
 } ngx_http_autoindex_ext_loc_conf_t;
 
@@ -45,6 +47,13 @@ static ngx_command_t ngx_http_autoindex_ext_commands[] = {
 		ngx_conf_set_flag_slot,
 		NGX_HTTP_LOC_CONF_OFFSET,
 		offsetof(ngx_http_autoindex_ext_loc_conf_t, sort_mode), NULL
+	},
+	{
+		ngx_string("autoindex_ext_sort_ignore_whitespace"),
+		NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+		ngx_conf_set_flag_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_autoindex_ext_loc_conf_t, ignore_whitespace), NULL
 	},
 	{
 		ngx_string("autoindex_ext_stylesheet"),
@@ -128,9 +137,19 @@ ngx_http_autoindex_ext_cmp_entries(const void *one, const void *two)
 
 	if(config->sort_mode != NGX_CONF_UNSET && config->sort_mode && first->date != second->date) {
 		return (int) first->date > second->date ? -1 : 1;
-	} else {
-		return (int) ngx_strcmp(first->name.data, second->name.data);
+	} else if(config->ignore_whitespace != NGX_CONF_UNSET && config->ignore_whitespace) {
+		return (int) ngx_strcmp_ignorewhitespace(first->name.data, second->name.data);
 	}
+
+	return (int) ngx_strcmp(first->name.data, second->name.data);
+}
+
+static int
+ngx_strcmp_ignorewhitespace(const u_char * s1, const u_char * s2)
+{
+	while(*s1 && ((*s1==*s2) || *s1 == ' ' || *s1 == '.' || *s1 == '_' || *s1 == '-' || *s1 == '\''))
+		s1++,s2++;
+	return *(const unsigned char*)s1-*(const unsigned char*)s2;
 }
 
 static ngx_int_t
@@ -204,7 +223,7 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 
 	// Set the actual path size.
 	path.len = last - path.data;
-    path.data[path.len] = '\0';	
+	path.data[path.len] = '\0';
 
 	// Is this the root directory?
 	is_root = 0;
@@ -388,11 +407,11 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 		b->last = ngx_cpymem(b->last, "<a href=\"", sizeof("<a href=\"") - 1);
 
 		if (entry[i].escape) {
-            ngx_escape_uri(b->last, entry[i].name.data, entry[i].name.len, NGX_ESCAPE_URI_COMPONENT);
-            b->last += entry[i].name.len + entry[i].escape;
-        } else {
-            b->last = ngx_cpymem(b->last, entry[i].name.data, entry[i].name.len);
-        }
+			ngx_escape_uri(b->last, entry[i].name.data, entry[i].name.len, NGX_ESCAPE_URI_COMPONENT);
+			b->last += entry[i].name.len + entry[i].escape;
+		} else {
+			b->last = ngx_cpymem(b->last, entry[i].name.data, entry[i].name.len);
+		}
 		if (entry[i].is_dir)
 			b->last = ngx_cpymem(b->last, "/", sizeof("/") - 1);
 		b->last = ngx_cpymem(b->last, "\">", sizeof("\">") - 1);
@@ -469,7 +488,8 @@ ngx_http_autoindex_ext_create_loc_conf(ngx_conf_t *cf)
 
 	conf->enabled = NGX_CONF_UNSET;
 	conf->exact_size = NGX_CONF_UNSET;
-	conf->sort_mode = -1;
+	conf->sort_mode = NGX_CONF_UNSET;
+	conf->ignore_whitespace = NGX_CONF_UNSET;
 
 	return conf;
 }

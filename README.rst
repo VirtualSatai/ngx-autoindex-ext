@@ -117,6 +117,13 @@ autoindex_ext_sort_by_date
 :Description:
   Sorts files and folders by dates instead of names.
 
+autoindex_ext_sort_ignore_whitespace
+~~~~~~~~~~~~~~~~~~~~~~~~
+:Syntax: *autoindex_ext_sort_by_date* [*on* | *off*]
+:Description:
+  Sorts files and folders without taking whitespace characters into account.
+  Here ' ', '.', '-', '_' and ''' are considered whitespace.
+
 autoindex_ext_stylesheet
 ~~~~~~~~~~~~~~~~~~~~~~~~
 :Syntax: *autoindex_ext_stylesheet uri*
