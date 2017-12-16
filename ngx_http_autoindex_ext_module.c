@@ -147,7 +147,8 @@ ngx_http_autoindex_ext_cmp_entries(const void *one, const void *two)
 static int
 ngx_strcmp_ignorewhitespace(const u_char * s1, const u_char * s2)
 {
-	while(*s1 && ((*s1==*s2) || *s1 == ' ' || *s1 == '.' || *s1 == '_' || *s1 == '-' || *s1 == '\''))
+	while(*s1 && ((*s1==*s2) || ((*s1 == ' ' || *s1 == '.' || *s1 == '_' || *s1 == '-' || *s1 == '\'')
+							&& (*s2 == ' ' || *s2 == '.' || *s2 == '_' || *s2 == '-' || *s2 == '\''))))
 		s1++,s2++;
 	return *(const unsigned char*)s1-*(const unsigned char*)s2;
 }
