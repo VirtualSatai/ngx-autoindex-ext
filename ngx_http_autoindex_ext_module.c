@@ -12,6 +12,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <ngx_time.h>
 
 static ngx_int_t ngx_http_autoindex_ext_init(ngx_conf_t *cf);
 static char * ngx_http_autoindex_ext_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
@@ -23,6 +24,7 @@ typedef struct {
 	ngx_flag_t	exact_size;
 	ngx_flag_t	sort_mode;
 	ngx_flag_t	ignore_whitespace;
+	ngx_flag_t	show_date;
 	ngx_str_t	stylesheet;
 } ngx_http_autoindex_ext_loc_conf_t;
 
@@ -54,6 +56,13 @@ static ngx_command_t ngx_http_autoindex_ext_commands[] = {
 		ngx_conf_set_flag_slot,
 		NGX_HTTP_LOC_CONF_OFFSET,
 		offsetof(ngx_http_autoindex_ext_loc_conf_t, ignore_whitespace), NULL
+	},
+	{
+		ngx_string("autoindex_ext_show_date"),
+		NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+		ngx_conf_set_flag_slot,
+		NGX_HTTP_LOC_CONF_OFFSET,
+		offsetof(ngx_http_autoindex_ext_loc_conf_t, show_date), NULL
 	},
 	{
 		ngx_string("autoindex_ext_stylesheet"),
@@ -103,11 +112,17 @@ static u_char ngx_http_autoindex_ext_header2[] =
 "\t<thead>"							CRLF
 "\t\t<tr>"							CRLF
 "\t\t\t<th>Name</th>"				CRLF
+;
+static u_char ngx_http_autoindex_ext_header3[] =
 "\t\t\t<th>Size</th>"				CRLF
 "\t\t</tr>"							CRLF
 "\t</thead>"						CRLF
 "\t<tbody>"							CRLF
 ;
+static u_char ngx_http_autoindex_ext_date_header[] =
+"\t\t\t<th>Date</th>"				CRLF
+;
+
 static u_char ngx_http_autoindex_ext_footer[] =
 "\t</tbody>"						CRLF
 "</table>"							CRLF
@@ -308,6 +323,12 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 	// Header and footer added.
 	response_size += sizeof(ngx_http_autoindex_ext_header1) - 1;
 	response_size += sizeof(ngx_http_autoindex_ext_header2) - 1;
+
+	// Date added
+	if(config->show_date != NGX_CONF_UNSET && config->show_date)
+		response_size += sizeof(ngx_http_autoindex_ext_date_header) - 1;
+
+	response_size += sizeof(ngx_http_autoindex_ext_header3) - 1;
 	response_size += sizeof(ngx_http_autoindex_ext_footer) - 1;
 
 	// We dont need the link to the parent directory in the root dir.
@@ -337,6 +358,10 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 			response_size += 3; // 1 for - and 2 for / twice.
 		else
 		{
+			// Date size
+			if(config->show_date != NGX_CONF_UNSET && config->show_date)
+				response_size += sizeof("\t\t\t<td>2018-07-25</td>" CRLF);
+
 			if (conf->exact_size) {
 				// Calculate the size of the integer.
 				response_size += ngx_http_autoindex_ext_number_length(entry[i].size);
@@ -396,6 +421,12 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 	}	
 	b->last = ngx_cpymem(b->last, ngx_http_autoindex_ext_header2, sizeof(ngx_http_autoindex_ext_header2) - 1);
 
+	// Add date header
+	if(config->show_date != NGX_CONF_UNSET && config->show_date)
+		b->last = ngx_cpymem(b->last, ngx_http_autoindex_ext_date_header, sizeof(ngx_http_autoindex_ext_date_header) - 1);
+
+	b->last = ngx_cpymem(b->last, ngx_http_autoindex_ext_header3, sizeof(ngx_http_autoindex_ext_header3) - 1);
+
 	// Only have the parent directory link in sub directories.
 	if (is_root != 1)
 		b->last = ngx_cpymem(b->last, ngx_http_autoindex_ext_back, sizeof(ngx_http_autoindex_ext_back) - 1);
@@ -421,6 +452,21 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 			b->last = ngx_cpymem(b->last, "/", sizeof("/") - 1);
 		b->last = ngx_cpymem(b->last, "</a>", sizeof("</a>") - 1);
 		b->last = ngx_cpymem(b->last, "</td>" CRLF "\t\t\t<td>", sizeof("</td>" CRLF "\t\t\t<td>") - 1);
+
+		// Add dates
+		if(config->show_date != NGX_CONF_UNSET && config->show_date) {
+			struct tm tm;
+			ngx_libc_gmtime(entry[i].date, &tm);
+			// Not sure why tm_year is 118 for 2018 :thinking: but this fixes it :shrug:
+			int year = tm.tm_year % 100 + 2000;
+			int month = tm.tm_mon;
+			int day = tm.tm_mday;
+			b->last = ngx_sprintf(b->last, "%04i-%02i-%02i", year, month, day);
+
+			// Close the tag and prepare the next one.
+			b->last = ngx_cpymem(b->last, "</td>" CRLF "\t\t\t<td>", sizeof("</td>" CRLF "\t\t\t<td>") - 1);
+		}
+
 		if (entry[i].is_dir)
 			b->last = ngx_cpymem(b->last, "-", sizeof("-") - 1);
 		else
@@ -490,6 +536,7 @@ ngx_http_autoindex_ext_create_loc_conf(ngx_conf_t *cf)
 	conf->enabled = NGX_CONF_UNSET;
 	conf->exact_size = NGX_CONF_UNSET;
 	conf->sort_mode = NGX_CONF_UNSET;
+	conf->show_date = NGX_CONF_UNSET;
 	conf->ignore_whitespace = NGX_CONF_UNSET;
 
 	return conf;
