@@ -353,15 +353,15 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 		"\t\t\t<td><a href=\"\"></a></td>" CRLF
 		"\t\t\t<td></td>" CRLF
 		"\t\t</tr>" CRLF) - 1;
-		
+
+		// Date size
+		if(config->show_date != NGX_CONF_UNSET && config->show_date)
+			response_size += sizeof("\t\t\t<td>") - 1 + 10 + sizeof("</td>" CRLF) - 1;
+
 		if (entry[i].is_dir)
 			response_size += 3; // 1 for - and 2 for / twice.
 		else
 		{
-			// Date size
-			if(config->show_date != NGX_CONF_UNSET && config->show_date)
-				response_size += sizeof("\t\t\t<td>2018-07-25</td>" CRLF);
-
 			if (conf->exact_size) {
 				// Calculate the size of the integer.
 				response_size += ngx_http_autoindex_ext_number_length(entry[i].size);
@@ -388,7 +388,7 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 					response_size += ngx_http_autoindex_ext_number_length(size);
 				} else {
 					response_size += ngx_http_autoindex_ext_number_length(size);
-				}				
+				}
 			}
 		}
 	}
@@ -459,7 +459,8 @@ ngx_http_autoindex_ext_handler(ngx_http_request_t *r)
 			ngx_libc_gmtime(entry[i].date, &tm);
 			// Not sure why tm_year is 118 for 2018 :thinking: but this fixes it :shrug:
 			int year = tm.tm_year % 100 + 2000;
-			int month = tm.tm_mon;
+			// Months are 0 indexed
+			int month = tm.tm_mon + 1;
 			int day = tm.tm_mday;
 			b->last = ngx_sprintf(b->last, "%04i-%02i-%02i", year, month, day);
 
